@@ -1,0 +1,15 @@
+# Secrets — never commit your real API key
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large raw data — not needed for deployment, only the trained model is
+data/raw/
