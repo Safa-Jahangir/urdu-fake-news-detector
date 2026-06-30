@@ -1,0 +1,153 @@
+# Urdu Fake News Detection System
+
+A 3-layer hybrid AI system to detect fake news in Urdu-language articles, combining a trained ML classifier with live web verification and named-entity fact-checking. Deployed as an interactive Streamlit web app.
+
+**🔗 Live demo:** https://urdu-fake-news-detector-jonpyafjihe6b3tpzqtqv2.streamlit.app/
+
+---
+
+## Why this matters
+
+Misinformation in Urdu-language media is a growing problem in Pakistan, affecting public opinion, health decisions, and political discourse. A classifier trained purely on writing style can be fooled by a well-written fake article — this system addresses that by cross-checking the actual claim against live news coverage and verifying named people exist, not just judging tone.
+
+---
+
+## Architecture — 3-Layer Hybrid
+
+```
+Article → Layer 1 (ML)  → base verdict (REAL/FAKE + confidence)
+        → Layer 2 (Claim verification) → nudges confidence using live search
+        → Layer 3 (Entity verification) → nudges confidence using fact-checking
+        → Final weighted verdict: REAL / FAKE / UNCERTAIN
+```
+
+**Layer 1 — ML Classifier**
+TF-IDF (word + character n-grams) features feed an SVM classifier trained on ~5,000 labeled Urdu articles, boosted with hand-engineered linguistic signals (sensational/unnamed-source phrases push toward fake; named institutional language pushes toward real).
+
+**Layer 2 — Claim Verification**
+Groq's LLM (`llama-3.1-8b-instant`) extracts the article's core factual claim, flags physically/scientifically impossible claims, then searches Google News RSS and asks the LLM whether the retrieved headlines actually confirm that specific claim (not just a related topic).
+
+**Layer 3 — Entity Verification**
+Named persons mentioned in the article are checked against Wikipedia and Google News. Real, verifiable people push the verdict toward real; persons that cannot be found anywhere push it toward fake.
+
+**Final verdict:** Layer 1 sets the base score; Layers 2 and 3 apply fixed confidence nudges rather than overriding the base verdict outright — this keeps the system stable while still correcting for fabricated claims that mimic real news style.
+
+---
+
+## Dataset
+
+| Dataset | Source | Size | Domains |
+|---|---|---|---|
+| Bend the Truth | [GitHub (Amjad et al., 2020)](https://github.com/MaazAmjad/Datasets-for-Urdu-news) | 900 articles | Business, Sports, Tech, Entertainment, Health |
+| UFN2023 | [Zenodo (Farooq et al., 2023)](https://doi.org/10.5281/zenodo.7773474) | 4,097 articles | 9 domains |
+
+Both datasets are manually annotated and verified by professional journalists. Real news collected from BBC Urdu, Jang, Dawn, Express News. Fake news written by native Urdu journalists.
+
+**Total: ~5,000 verified samples** after merging.
+
+---
+
+## ML Pipeline (Layer 1)
+
+```
+Raw text → Preprocessing → TF-IDF (word + char n-grams) → SMOTE → SVM classifier → base verdict
+```
+
+- Word-level TF-IDF (unigrams–trigrams, up to 50k features)
+- Character-level TF-IDF (2-6 grams, up to 50k features) — captures Urdu morphology
+- SMOTE class balancing applied on the training split only
+- Calibrated SVM (Platt scaling) selected over Logistic Regression, Naive Bayes, and Decision Tree after 5-fold cross-validation
+
+**Test accuracy:** ~89% | **F1-score:** ~0.89
+
+---
+
+## System Evaluation (full 3-layer system)
+
+The ML model alone reaches ~89% accuracy on held-out test data, but is vulnerable to confidently misclassifying fabricated articles that mimic formal journalistic style. Manual testing across ~20 diverse hand-written articles (covering political, health, scientific, and human-interest claims, spanning genuinely fake, genuinely real, and deliberately ambiguous cases) showed the full hybrid system:
+
+- Caught essentially all fabricated/impossible claims (e.g. miracle cures, scientifically implausible inventions, invented "expert" sources) that the ML layer alone missed
+- Correctly classified real institutional news (government announcements, court proceedings, economic data) even when ML's raw confidence was borderline
+- Appropriately routed genuinely ambiguous, unverifiable claims to an **UNCERTAIN** verdict rather than forcing a confident wrong answer
+
+**Known limitation:** the system verifies that named entities exist, but not that they performed the specific claimed action — a fabricated story about a real public figure can still pass Layer 3 if Layer 2's search doesn't surface a strong contradiction. Addressing this fully would require claim-level natural language inference rather than keyword/entity matching, which is a natural next step (e.g. fine-tuning a multilingual NLI model on Urdu claim-evidence pairs).
+
+---
+
+## Project Structure
+
+```
+urdu_fake_news/
+├── notebooks/
+│   └── urdu_fake_news_detection.ipynb   # Full Layer-1 ML pipeline (EDA → training → evaluation)
+├── retrain.py                           # Standalone retraining script
+├── app/
+│   ├── app.py                           # Streamlit app + Layer 1 inference + suspicion scoring
+│   ├── hybrid_engine.py                 # Layer 2 (claim verification) + Layer 3 (entity verification)
+│   ├── requirements.txt                 # Runtime dependencies for deployment
+│   └── models/
+│       └── classifier.pkl               # Trained model + vectorizers (generated by retrain.py)
+├── data/
+│   └── raw/
+│       ├── bend_the_truth/              # Train/Real, Train/Fake, Test/Real, Test/Fake .txt files
+│       └── ufn2023/                     # news.xlsx
+└── README.md
+```
+
+---
+
+## Running Locally
+
+**1. Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+**2. Download datasets**
+- Bend the Truth → https://github.com/MaazAmjad/Datasets-for-Urdu-news
+- UFN2023 → https://doi.org/10.5281/zenodo.7773474
+
+Place them according to the folder structure above.
+
+**3. Train the model**
+```bash
+python retrain.py
+```
+Saves the trained classifier to `app/models/classifier.pkl`.
+
+**4. Add your Groq API key** (free at console.groq.com)
+Create `.streamlit/secrets.toml`:
+```toml
+GROQ_API_KEY = "your_key_here"
+```
+
+**5. Launch the app**
+```bash
+streamlit run app/app.py
+```
+
+---
+
+## Deployment
+
+Live on **Streamlit Community Cloud**, deployed directly from this GitHub repository. The Groq API key is stored securely via Streamlit's secrets manager and is never exposed in the codebase.
+
+---
+
+## References
+
+```
+Amjad, M., Sidorov, G., & Zhila, A. (2020). "Bend the Truth: A Benchmark Dataset for
+Fake News Detection in Urdu and Its Evaluation." Journal of Intelligent &
+Fuzzy Systems, 39(2), 2457-2469.
+
+Farooq, M., et al. (2023). "Fake news detection in Urdu language using machine
+learning." PeerJ Computer Science, 9, e1353.
+```
+
+---
+
+## Author
+
+Safa — Software Engineering student, building applied NLP and full-stack ML systems.
+This project demonstrates end-to-end ML pipeline design, hybrid AI system architecture combining classical ML with LLM-based reasoning, and production deployment.
