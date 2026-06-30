@@ -70,8 +70,6 @@ The ML model alone reaches ~89% accuracy on held-out test data, but is vulnerabl
 - Correctly classified real institutional news (government announcements, court proceedings, economic data) even when ML's raw confidence was borderline
 - Appropriately routed genuinely ambiguous, unverifiable claims to an **UNCERTAIN** verdict rather than forcing a confident wrong answer
 
-**Known limitation:** the system verifies that named entities exist, but not that they performed the specific claimed action — a fabricated story about a real public figure can still pass Layer 3 if Layer 2's search doesn't surface a strong contradiction. Addressing this fully would require claim-level natural language inference rather than keyword/entity matching, which is a natural next step (e.g. fine-tuning a multilingual NLI model on Urdu claim-evidence pairs).
-
 ---
 
 ## Project Structure
@@ -149,5 +147,5 @@ learning." PeerJ Computer Science, 9, e1353.
 
 ## Author
 
-Safa — Software Engineering student, building applied NLP and full-stack ML systems.
+Safa Jahangir — Software Engineering student, building applied NLP and full-stack ML systems.
 This project demonstrates end-to-end ML pipeline design, hybrid AI system architecture combining classical ML with LLM-based reasoning, and production deployment.
